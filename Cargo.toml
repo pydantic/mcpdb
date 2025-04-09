@@ -1,0 +1,17 @@
+[package]
+name = "pydantic-ai-memory-mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.97"
+fastembed = "4.6.0"
+logfire = "0.5.0"
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["transport-sse-server"]}
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+sqlx = { version = "0.8.3", default-features = false, features = ["postgres", "runtime-tokio-rustls"] }
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread", "signal"] }
+tokio-postgres = "0.7.13"
+tracing = "0.1.41"
+zerocopy = "0.8.24"

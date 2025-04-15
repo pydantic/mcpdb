@@ -1,3 +1,4 @@
+use clap::Parser;
 use fastembed::TextEmbedding;
 use rmcp::transport::sse_server::SseServer;
 use rmcp::{
@@ -9,6 +10,7 @@ use rmcp::{
 };
 use serde_json::json;
 use sqlx::{Executor, Pool, Postgres};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::LazyLock;
 
 #[derive(Debug, Clone)]
@@ -161,10 +163,23 @@ async fn generate_embedding(text: String) -> Vec<f32> {
     embeddings.pop().expect("should be one embedding")
 }
 
-const BIND_ADDRESS: &str = "127.0.0.1:3456";
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Host address to bind the server to
+    #[arg(long, default_value = "127.0.0.1")]
+    host: IpAddr,
+
+    /// Port to bind the server to
+    #[arg(long, default_value = "3456")]
+    port: u16,
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    // TODO add proper logfire configuration (optional)
     let logfire = logfire::configure()
         .send_to_logfire(false)
         .install_panic_handler()
@@ -197,9 +212,9 @@ async fn main() -> anyhow::Result<()> {
     // TODO default SseServer::serve seems to set inconsistent paths, which seems
     // to be against MCP spec. Fix upstream?
     let ct = SseServer::serve_with_config(SseServerConfig {
-        bind: BIND_ADDRESS.parse()?,
-        sse_path: "/".into(),
-        post_path: "/".into(),
+        bind: SocketAddr::new(cli.host, cli.port),
+        sse_path: "/sse".into(),
+        post_path: "/sse".into(),
         ct: Default::default(),
         sse_keep_alive: None, // foo
     })

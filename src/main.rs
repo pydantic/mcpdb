@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::Parser;
 use fastembed::TextEmbedding;
 use rmcp::transport::sse_server::SseServer;
@@ -173,6 +174,10 @@ struct Cli {
     /// Port to bind the server to
     #[arg(long, default_value = "3456")]
     port: u16,
+
+    /// Postgres dsn to bind to
+    #[arg(long, required = true)]
+    postgres_dsn: String,
 }
 
 #[tokio::main]
@@ -185,11 +190,14 @@ async fn main() -> anyhow::Result<()> {
         .install_panic_handler()
         .finish()?;
 
-    let pool = sqlx::Pool::<sqlx::Postgres>::connect("postgres://postgres:postgres@localhost:5432")
+    let pool = sqlx::Pool::<sqlx::Postgres>::connect(&cli.postgres_dsn)
         .await
-        .expect("Failed to create pool");
+        .with_context(|| format!("Failed to connect to postgres at {}", cli.postgres_dsn))?;
 
-    let mut client = pool.acquire().await.expect("Failed to acquire client");
+    let mut client = pool
+        .acquire()
+        .await
+        .context("Failed to acquire postgres client")?;
 
     // TODO: could use proper migrations here
 

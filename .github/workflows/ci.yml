@@ -48,8 +48,6 @@ jobs:
           PRE_COMMIT_COLOR: always
           SKIP: test
 
-      - run: cargo doc -F python
-
   build-sdist:
     name: build sdist
     runs-on: ubuntu-latest

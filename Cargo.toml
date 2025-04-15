@@ -1,10 +1,11 @@
 [package]
-name = "pydantic-ai-memory-mcp"
+name = "mcpdb"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0.97"
+clap = { version = "4.5.36", features = ["derive"] }
 fastembed = "4.6.0"
 logfire = "0.5.0"
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main", features = ["transport-sse-server"]}

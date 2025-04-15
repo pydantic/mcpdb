@@ -76,6 +76,13 @@ jobs:
       matrix:
         os: [windows, macos, linux]
         target: [x86_64, aarch64]
+        # onyx runtime seems to have issues with these targets, need to find alternative
+        # solution, fine to skip for now.
+        exclude:
+          - os: windows
+            target: aarch64
+          - os: linux
+            target: aarch64
 
     runs-on: ${{ (matrix.os == 'linux' && 'ubuntu') || matrix.os }}-latest
     steps:

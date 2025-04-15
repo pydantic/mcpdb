@@ -13,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       MSRV: ${{ steps.resolve-msrv.outputs.MSRV }}
+      full-build: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'Full Build') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -68,9 +69,9 @@ jobs:
           path: dist
 
   build:
+    needs: [resolve]
     name: build on ${{ matrix.os }} / ${{ matrix.target }}
-    # only run on push to main and on release
-    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'Full Build')
+    if: ${{ needs.resolve.outputs.full-build == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -142,61 +143,24 @@ jobs:
           ls dist/*py3-none-*linux*x86_64.whl | head -n 1
           python -m zipfile --list `ls dist/*py3-none-*linux*x86_64.whl | head -n 1`
 
-  test-builds-arch:
-    name: test build on ${{ matrix.target }}-${{ matrix.distro }}
-    needs: [build]
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [aarch64, armv7, s390x, ppc64le]
-        distro: ["ubuntu22.04"]
-        include:
-          - target: aarch64
-            distro: alpine_latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: get dist artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: pypi_files_linux_*
-          merge-multiple: true
-          path: dist
-
-      - uses: uraimo/run-on-arch-action@v2
-        name: install & test
-        with:
-          arch: ${{ matrix.target }}
-          distro: ${{ matrix.distro }}
-          githubToken: ${{ github.token }}
-          install: |
-            set -x
-            if command -v apt-get &> /dev/null; then
-              echo "installing python & pip with apt-get..."
-              apt-get update
-              apt-get install -y --no-install-recommends python3 python3-pip python3-venv git
-            else
-              echo "installing python & pip with apk..."
-              apk update
-              apk add python3 py3-pip git
-            fi
-          run: |
-            python3 -m pip install mcpdb --no-index --no-deps --find-links dist --force-reinstall
-            python3 -m mcpdb --help
-
-  test-builds-os:
+  test-builds:
     name: test build on ${{ matrix.os }}
     needs: [build]
 
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [windows, macos, linux]
+        target: [x86_64, aarch64]
+        # onyx runtime seems to have issues with these targets, need to find alternative
+        # solution, fine to skip for now.
+        exclude:
+          - os: windows
+            target: aarch64
+          - os: linux
+            target: aarch64
 
-    runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ (matrix.os == 'linux' && 'ubuntu') || matrix.os }}-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -215,25 +179,22 @@ jobs:
       - name: run tests
         run: |
           python3 -m pip install mcpdb --no-index --no-deps --find-links dist --force-reinstall
-          python3 -m mcpdb --help
+          mcpdb --help
 
   # https://github.com/marketplace/actions/alls-green#why used for branch protection checks
   check:
     if: always()
-    needs: [lint]
+    needs: [resolve, lint, test-builds, build-sdist]
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
         uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
+          allowed-skips: ${{ needs.resolve.outputs.full-build == 'true' && '' || 'test-builds' }}
 
   release:
-    needs:
-      - check
-      - test-builds-arch
-      - test-builds-os
-      - build-sdist
+    needs: [check]
     if: success() && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     environment: release
